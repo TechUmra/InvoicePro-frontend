@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import API from "../services/api";
 
 function BusinessProfile() {
     const navigate = useNavigate();
@@ -35,88 +36,58 @@ function BusinessProfile() {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const token =
-                    localStorage.getItem("token");
+                const token = localStorage.getItem("token");
 
                 if (!token) {
                     navigate("/login");
                     return;
                 }
 
-                const response = await fetch(
-                    "http://localhost:5000/api/auth/me",
-                    {
-                        method: "GET",
-                        headers: {
-                            Authorization:
-                                `Bearer ${token}`,
-                        },
-                    }
-                );
+                const response = await API.get("/auth/me");
 
-                const data =
-                    await response.json();
-
-                if (!response.ok) {
-                    throw new Error(
-                        data.message ||
-                            "Failed to load profile"
-                    );
-                }
+                // Axios already converts JSON response
+                const data = response.data;
 
                 const user = data.user;
 
+                if (!user) {
+                    throw new Error("User profile not found.");
+                }
+
                 setFormData({
-                    businessName:
-                        user.businessName || "",
-
-                    businessType:
-                        user.businessType || "",
-
+                    businessName: user.businessName || "",
+                    businessType: user.businessType || "",
                     businessDescription:
-                        user.businessDescription ||
-                        "",
-
+                        user.businessDescription || "",
                     businessAddress:
                         user.businessAddress || "",
+                    gstin: user.gstin || "",
+                    phone: user.phone || "",
 
-                    gstin:
-                        user.gstin || "",
-
-                    phone:
-                        user.phone || "",
-
-                    signature:
-                        user.signature || "",
-
+                    signature: user.signature || "",
                     businessStamp:
                         user.businessStamp || "",
 
                     bankDetails: {
                         bankName:
-                            user.bankDetails
-                                ?.bankName || "",
+                            user.bankDetails?.bankName || "",
 
                         accountHolderName:
                             user.bankDetails
-                                ?.accountHolderName ||
-                            "",
+                                ?.accountHolderName || "",
 
                         accountNumber:
                             user.bankDetails
                                 ?.accountNumber || "",
 
                         ifscCode:
-                            user.bankDetails
-                                ?.ifscCode || "",
+                            user.bankDetails?.ifscCode || "",
 
                         branch:
-                            user.bankDetails
-                                ?.branch || "",
+                            user.bankDetails?.branch || "",
 
                         upiId:
-                            user.bankDetails
-                                ?.upiId || "",
+                            user.bankDetails?.upiId || "",
                     },
                 });
             } catch (error) {
@@ -125,10 +96,21 @@ function BusinessProfile() {
                     error
                 );
 
-                alert(
+                const message =
+                    error.response?.data?.message ||
                     error.message ||
-                        "Unable to load business profile."
-                );
+                    "Unable to load business profile.";
+
+                alert(message);
+
+                // If unauthorized, go to login
+                if (
+                    error.response?.status === 401 ||
+                    error.response?.status === 403
+                ) {
+                    localStorage.removeItem("token");
+                    navigate("/login");
+                }
             } finally {
                 setLoading(false);
             }
@@ -171,29 +153,22 @@ function BusinessProfile() {
     // IMAGE TO BASE64
     // =====================================================
 
-    const handleImageUpload = (
-        e,
-        fieldName
-    ) => {
+    const handleImageUpload = (e, fieldName) => {
         const file = e.target.files?.[0];
 
         if (!file) return;
 
         // Allow only images
         if (!file.type.startsWith("image/")) {
-            alert(
-                "Please select a valid image file."
-            );
+            alert("Please select a valid image file.");
 
             e.target.value = "";
             return;
         }
 
-        // Limit file size to 2MB
+        // Maximum 2MB
         if (file.size > 2 * 1024 * 1024) {
-            alert(
-                "Image size should be less than 2MB."
-            );
+            alert("Image size should be less than 2MB.");
 
             e.target.value = "";
             return;
@@ -204,15 +179,12 @@ function BusinessProfile() {
         reader.onloadend = () => {
             setFormData((previous) => ({
                 ...previous,
-                [fieldName]:
-                    reader.result,
+                [fieldName]: reader.result,
             }));
         };
 
         reader.onerror = () => {
-            alert(
-                "Unable to read the image."
-            );
+            alert("Unable to read the image.");
         };
 
         reader.readAsDataURL(file);
@@ -248,64 +220,43 @@ function BusinessProfile() {
         e.preventDefault();
 
         if (!formData.businessName.trim()) {
-            alert(
-                "Please enter your business name."
-            );
-
+            alert("Please enter your business name.");
             return;
         }
 
         try {
             setSaving(true);
 
-            const token =
-                localStorage.getItem("token");
+            const token = localStorage.getItem("token");
 
             if (!token) {
                 navigate("/login");
                 return;
             }
 
-            const response = await fetch(
-                "http://localhost:5000/api/auth/profile",
-                {
-                    method: "PUT",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-
-                        Authorization:
-                            `Bearer ${token}`,
-                    },
-
-                    body: JSON.stringify(
-                        formData
-                    ),
-                }
+            const response = await API.put(
+                "/auth/profile",
+                formData
             );
 
-            const data =
-                await response.json();
-
-            if (!response.ok) {
-                throw new Error(
-                    data.message ||
-                        "Failed to update profile."
-                );
-            }
+            // Axios already gives parsed JSON
+            const data = response.data;
 
             // ==========================================
             // UPDATE LOCAL STORAGE
             // ==========================================
 
             if (data.user) {
-                const oldUser =
-                    JSON.parse(
-                        localStorage.getItem(
-                            "user"
-                        )
-                    ) || {};
+                let oldUser = {};
+
+                try {
+                    oldUser =
+                        JSON.parse(
+                            localStorage.getItem("user")
+                        ) || {};
+                } catch {
+                    oldUser = {};
+                }
 
                 localStorage.setItem(
                     "user",
@@ -317,6 +268,7 @@ function BusinessProfile() {
             }
 
             alert(
+                data.message ||
                 "Business profile updated successfully!"
             );
 
@@ -327,10 +279,21 @@ function BusinessProfile() {
                 error
             );
 
-            alert(
+            const message =
+                error.response?.data?.message ||
                 error.message ||
-                    "Something went wrong while saving."
-            );
+                "Something went wrong while saving.";
+
+            alert(message);
+
+            // If token expired
+            if (
+                error.response?.status === 401 ||
+                error.response?.status === 403
+            ) {
+                localStorage.removeItem("token");
+                navigate("/login");
+            }
         } finally {
             setSaving(false);
         }
@@ -344,7 +307,6 @@ function BusinessProfile() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-100">
                 <div className="text-center">
-
                     <div className="text-2xl mb-2">
                         ⏳
                     </div>
@@ -352,7 +314,6 @@ function BusinessProfile() {
                     <p className="text-slate-600">
                         Loading business profile...
                     </p>
-
                 </div>
             </div>
         );
@@ -364,15 +325,12 @@ function BusinessProfile() {
 
     return (
         <div className="min-h-screen bg-slate-100 py-10 px-4">
-
             <div className="max-w-4xl mx-auto">
 
                 {/* HEADER */}
 
                 <div className="flex items-center justify-between mb-8">
-
                     <div>
-
                         <h1 className="text-3xl font-bold text-slate-800">
                             Business Profile
                         </h1>
@@ -380,7 +338,6 @@ function BusinessProfile() {
                         <p className="text-slate-500 mt-1">
                             Enter your business details for invoices
                         </p>
-
                     </div>
 
                     <button
@@ -392,7 +349,6 @@ function BusinessProfile() {
                     >
                         ← Dashboard
                     </button>
-
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -416,7 +372,6 @@ function BusinessProfile() {
                             {/* BUSINESS NAME */}
 
                             <div className="md:col-span-2">
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Business Name *
                                 </label>
@@ -424,23 +379,17 @@ function BusinessProfile() {
                                 <input
                                     type="text"
                                     name="businessName"
-                                    value={
-                                        formData.businessName
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={formData.businessName}
+                                    onChange={handleChange}
                                     placeholder="e.g. Umra Enterprises"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                     required
                                 />
-
                             </div>
 
                             {/* BUSINESS TYPE */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Business Type
                                 </label>
@@ -448,22 +397,16 @@ function BusinessProfile() {
                                 <input
                                     type="text"
                                     name="businessType"
-                                    value={
-                                        formData.businessType
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={formData.businessType}
+                                    onChange={handleChange}
                                     placeholder="e.g. Manufacturer & Supplier"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* BUSINESS DESCRIPTION */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Business Description
                                 </label>
@@ -471,22 +414,16 @@ function BusinessProfile() {
                                 <input
                                     type="text"
                                     name="businessDescription"
-                                    value={
-                                        formData.businessDescription
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={formData.businessDescription}
+                                    onChange={handleChange}
                                     placeholder="e.g. Traditional handmade products"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* GSTIN */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     GSTIN
                                 </label>
@@ -494,22 +431,16 @@ function BusinessProfile() {
                                 <input
                                     type="text"
                                     name="gstin"
-                                    value={
-                                        formData.gstin
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={formData.gstin}
+                                    onChange={handleChange}
                                     placeholder="e.g. 09ABCDE1234F1Z5"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 uppercase outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* MOBILE */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Mobile Number
                                 </label>
@@ -517,43 +448,31 @@ function BusinessProfile() {
                                 <input
                                     type="tel"
                                     name="phone"
-                                    value={
-                                        formData.phone
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={formData.phone}
+                                    onChange={handleChange}
                                     placeholder="e.g. 9876543210"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* ADDRESS */}
 
                             <div className="md:col-span-2">
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Business Address
                                 </label>
 
                                 <textarea
                                     name="businessAddress"
-                                    value={
-                                        formData.businessAddress
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
+                                    value={formData.businessAddress}
+                                    onChange={handleChange}
                                     placeholder="Enter complete business / office address"
                                     rows="4"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                                 />
-
                             </div>
 
                         </div>
-
                     </div>
 
                     {/* ================================================= */}
@@ -574,12 +493,9 @@ function BusinessProfile() {
 
                         <div className="grid md:grid-cols-2 gap-6">
 
-                            {/* ================================================= */}
                             {/* SIGNATURE */}
-                            {/* ================================================= */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Authorized Signature
                                 </label>
@@ -592,9 +508,7 @@ function BusinessProfile() {
                                             <div className="bg-slate-50 rounded-xl h-40 flex items-center justify-center overflow-hidden">
 
                                                 <img
-                                                    src={
-                                                        formData.signature
-                                                    }
+                                                    src={formData.signature}
                                                     alt="Signature Preview"
                                                     className="max-h-32 max-w-full object-contain"
                                                 />
@@ -623,9 +537,7 @@ function BusinessProfile() {
 
                                                 <button
                                                     type="button"
-                                                    onClick={
-                                                        removeSignature
-                                                    }
+                                                    onClick={removeSignature}
                                                     className="px-4 py-2.5 rounded-xl bg-red-50 text-red-600 font-medium hover:bg-red-100"
                                                 >
                                                     Remove
@@ -665,15 +577,11 @@ function BusinessProfile() {
                                     )}
 
                                 </div>
-
                             </div>
 
-                            {/* ================================================= */}
                             {/* BUSINESS STAMP */}
-                            {/* ================================================= */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Business Stamp
                                 </label>
@@ -686,9 +594,7 @@ function BusinessProfile() {
                                             <div className="bg-slate-50 rounded-xl h-40 flex items-center justify-center overflow-hidden">
 
                                                 <img
-                                                    src={
-                                                        formData.businessStamp
-                                                    }
+                                                    src={formData.businessStamp}
                                                     alt="Business Stamp Preview"
                                                     className="max-h-32 max-w-full object-contain"
                                                 />
@@ -717,9 +623,7 @@ function BusinessProfile() {
 
                                                 <button
                                                     type="button"
-                                                    onClick={
-                                                        removeStamp
-                                                    }
+                                                    onClick={removeStamp}
                                                     className="px-4 py-2.5 rounded-xl bg-red-50 text-red-600 font-medium hover:bg-red-100"
                                                 >
                                                     Remove
@@ -759,11 +663,9 @@ function BusinessProfile() {
                                     )}
 
                                 </div>
-
                             </div>
 
                         </div>
-
                     </div>
 
                     {/* ================================================= */}
@@ -785,7 +687,6 @@ function BusinessProfile() {
                             {/* BANK NAME */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Bank Name
                                 </label>
@@ -793,23 +694,16 @@ function BusinessProfile() {
                                 <input
                                     type="text"
                                     name="bankName"
-                                    value={
-                                        formData.bankDetails
-                                            .bankName
-                                    }
-                                    onChange={
-                                        handleBankChange
-                                    }
+                                    value={formData.bankDetails.bankName}
+                                    onChange={handleBankChange}
                                     placeholder="e.g. State Bank of India"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* ACCOUNT HOLDER */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Account Holder Name
                                 </label>
@@ -821,19 +715,15 @@ function BusinessProfile() {
                                         formData.bankDetails
                                             .accountHolderName
                                     }
-                                    onChange={
-                                        handleBankChange
-                                    }
+                                    onChange={handleBankChange}
                                     placeholder="Account holder name"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* ACCOUNT NUMBER */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Account Number
                                 </label>
@@ -845,19 +735,15 @@ function BusinessProfile() {
                                         formData.bankDetails
                                             .accountNumber
                                     }
-                                    onChange={
-                                        handleBankChange
-                                    }
+                                    onChange={handleBankChange}
                                     placeholder="Bank account number"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* IFSC */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     IFSC Code
                                 </label>
@@ -869,19 +755,15 @@ function BusinessProfile() {
                                         formData.bankDetails
                                             .ifscCode
                                     }
-                                    onChange={
-                                        handleBankChange
-                                    }
+                                    onChange={handleBankChange}
                                     placeholder="e.g. SBIN0001234"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 uppercase outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* BRANCH */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     Branch
                                 </label>
@@ -890,22 +772,17 @@ function BusinessProfile() {
                                     type="text"
                                     name="branch"
                                     value={
-                                        formData.bankDetails
-                                            .branch
+                                        formData.bankDetails.branch
                                     }
-                                    onChange={
-                                        handleBankChange
-                                    }
+                                    onChange={handleBankChange}
                                     placeholder="Branch name"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                             {/* UPI */}
 
                             <div>
-
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
                                     UPI ID
                                 </label>
@@ -914,20 +791,15 @@ function BusinessProfile() {
                                     type="text"
                                     name="upiId"
                                     value={
-                                        formData.bankDetails
-                                            .upiId
+                                        formData.bankDetails.upiId
                                     }
-                                    onChange={
-                                        handleBankChange
-                                    }
+                                    onChange={handleBankChange}
                                     placeholder="e.g. business@upi"
                                     className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-
                             </div>
 
                         </div>
-
                     </div>
 
                     {/* ================================================= */}
@@ -939,9 +811,7 @@ function BusinessProfile() {
                         <button
                             type="button"
                             onClick={() =>
-                                navigate(
-                                    "/dashboard"
-                                )
+                                navigate("/dashboard")
                             }
                             className="px-6 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                         >
@@ -961,9 +831,7 @@ function BusinessProfile() {
                     </div>
 
                 </form>
-
             </div>
-
         </div>
     );
 }

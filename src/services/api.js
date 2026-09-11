@@ -2,7 +2,8 @@ import axios from "axios";
 
 const API = axios.create({
     baseURL:
-     "https://invoicepro-backend-1.onrender.com/api",
+      import.meta.env.VITE_API_URL ||
+    "http://192.168.1.40:5000/api",
 
     headers: {
         "Content-Type":

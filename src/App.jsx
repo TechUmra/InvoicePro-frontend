@@ -11,12 +11,20 @@ import Dashboard from "./pages/Dashboard";
 import CreateInvoice from "./pages/CreateInvoice";
 import InvoicePreview from "./pages/InvoicePreview";
 import BusinessProfile from "./pages/BusinessProfile";
+import Customers from "./pages/Customers";
+import Products from "./pages/Products";
+import Analytics from "./pages/Analytics";
+import AIAssistant from "./pages/AIAssistant";
 
 import ProtectedRoute from "./components/ProtectedRoute";
+import UpdateChecker from "./components/UpdateChecker";
 
 function App() {
     return (
         <BrowserRouter>
+
+            <UpdateChecker />
+
             <Routes>
 
                 {/* =========================
@@ -61,6 +69,34 @@ function App() {
                         element={<Dashboard />}
                     />
 
+                    {/* Customers */}
+
+                    <Route
+                        path="/customers"
+                        element={<Customers />}
+                    />
+
+                    {/* Products */}
+
+                    <Route
+                        path="/products"
+                        element={<Products />}
+                    />
+
+                    {/* Analytics */}
+
+                    <Route
+                        path="/analytics"
+                        element={<Analytics />}
+                    />
+
+                    {/* AI Assistant */}
+
+                    <Route
+                        path="/ai-assistant"
+                        element={<AIAssistant />}
+                    />
+
                     {/* Business Profile */}
 
                     <Route
@@ -99,6 +135,7 @@ function App() {
                 />
 
             </Routes>
+
         </BrowserRouter>
     );
 }

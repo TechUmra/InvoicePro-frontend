@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import API from "../services/api";
 import { useNavigate } from "react-router-dom";
 
 function Signup() {
     const navigate = useNavigate();
+    const errorRef = useRef(null);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -17,20 +18,14 @@ function Signup() {
         phone: "",
     });
 
-    const [message, setMessage] =
-        useState("");
-
-    const [error, setError] =
-        useState("");
-
-    const [loading, setLoading] =
-        useState(false);
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
-            [e.target.name]:
-                e.target.value,
+            [e.target.name]: e.target.value,
         });
     };
 
@@ -42,11 +37,10 @@ function Signup() {
         setLoading(true);
 
         try {
-            const response =
-                await API.post(
-                    "/auth/register",
-                    formData
-                );
+            const response = await API.post(
+                "/auth/register",
+                formData
+            );
 
             setMessage(
                 response.data.message ||
@@ -69,11 +63,18 @@ function Signup() {
                 navigate("/login");
             }, 1200);
         } catch (error) {
-            setError(
-                error.response?.data
-                    ?.message ||
-                    "Something went wrong. Please try again."
-            );
+            const errorMessage =
+                error.response?.data?.message ||
+                "Something went wrong. Please try again.";
+
+            setError(errorMessage);
+
+            setTimeout(() => {
+                errorRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                });
+            }, 100);
         } finally {
             setLoading(false);
         }
@@ -107,7 +108,10 @@ function Signup() {
                 )}
 
                 {error && (
-                    <div className="mb-5 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+                    <div
+                        ref={errorRef}
+                        className="mb-5 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm"
+                    >
                         {error}
                     </div>
                 )}
@@ -339,9 +343,7 @@ function Signup() {
 
                     <button
                         type="button"
-                        onClick={() =>
-                            navigate("/login")
-                        }
+                        onClick={() => navigate("/login")}
                         className="text-indigo-600 font-medium hover:underline"
                     >
                         Login

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Capacitor } from "@capacitor/core";
+import API from "../services/api";
 
 function InvoicePreview() {
     const navigate = useNavigate();
@@ -36,24 +39,15 @@ function InvoicePreview() {
                     return;
                 }
 
-                const response = await fetch(
-                    "http://localhost:5000/api/auth/me",
-                    {
-                        method: "GET",
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                );
+                // Use centralized API service instead of hardcoded localhost URL
+                const response = await API.get("/auth/me");
 
-                const data = await response.json();
-
-                if (response.ok && data.user) {
-                    setUser(data.user);
+                if (response.data && response.data.user) {
+                    setUser(response.data.user);
 
                     localStorage.setItem(
                         "user",
-                        JSON.stringify(data.user)
+                        JSON.stringify(response.data.user)
                     );
                 } else {
                     const savedUser =
@@ -329,148 +323,256 @@ function InvoicePreview() {
     // PDF GENERATION
     // =====================================================
 
-    const generatePDF = () => {
-        if (!invoice) return;
+    const generatePDF = async () => {
+        if (!invoice) {
+            alert("Invoice not found.");
+            return;
+        }
 
-        const doc = new jsPDF(
-            "p",
-            "mm",
-            "a4"
-        );
+        try {
+            const doc = new jsPDF(
+                "p",
+                "mm",
+                "a4"
+            );
 
-        const pageWidth =
-            doc.internal.pageSize.getWidth();
+            const pageWidth =
+                doc.internal.pageSize.getWidth();
 
-        const pageHeight =
-            doc.internal.pageSize.getHeight();
+            const pageHeight =
+                doc.internal.pageSize.getHeight();
 
-        const left = 14;
-        const right = pageWidth - 14;
+            const left = 14;
+            const right = pageWidth - 14;
 
-        const primary = [
-            79,
-            70,
-            229,
-        ];
+            const primary = [
+                79,
+                70,
+                229,
+            ];
 
-        const dark = [
-            30,
-            41,
-            59,
-        ];
+            const dark = [
+                30,
+                41,
+                59,
+            ];
 
-        const gray = [
-            100,
-            116,
-            139,
-        ];
+            const gray = [
+                100,
+                116,
+                139,
+            ];
 
-        const lightGray = [
-            226,
-            232,
-            240,
-        ];
+            const lightGray = [
+                226,
+                232,
+                240,
+            ];
 
-        // =================================================
-        // BORDER
-        // =================================================
+            // =================================================
+            // BORDER
+            // =================================================
 
-        doc.setDrawColor(...lightGray);
-        doc.setLineWidth(0.4);
+            doc.setDrawColor(...lightGray);
+            doc.setLineWidth(0.4);
 
-        doc.rect(
-            10,
-            10,
-            pageWidth - 20,
-            pageHeight - 20
-        );
+            doc.rect(
+                10,
+                10,
+                pageWidth - 20,
+                pageHeight - 20
+            );
 
-        // =================================================
-        // GSTIN + MOBILE
-        // =================================================
+            // =================================================
+            // GSTIN + MOBILE
+            // =================================================
 
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
+            doc.setFont(
+                "helvetica",
+                "normal"
+            );
 
-        doc.setFontSize(8);
-        doc.setTextColor(...gray);
+            doc.setFontSize(8);
+            doc.setTextColor(...gray);
 
-        doc.text(
-            `GSTIN: ${
-                user?.gstin || "N/A"
-            }`,
-            left,
-            18
-        );
+            doc.text(
+                `GSTIN: ${
+                    user?.gstin || "N/A"
+                }`,
+                left,
+                18
+            );
 
-        doc.text(
-            `Mobile: ${
-                user?.phone || "N/A"
-            }`,
-            right,
-            18,
-            {
-                align: "right",
+            doc.text(
+                `Mobile: ${
+                    user?.phone || "N/A"
+                }`,
+                right,
+                18,
+                {
+                    align: "right",
+                }
+            );
+
+            // =================================================
+            // TAX INVOICE
+            // =================================================
+
+            doc.setFont(
+                "helvetica",
+                "bold"
+            );
+
+            doc.setFontSize(15);
+            doc.setTextColor(...dark);
+
+            doc.text(
+                "TAX INVOICE",
+                pageWidth / 2,
+                29,
+                {
+                    align: "center",
+                }
+            );
+
+            // =================================================
+            // BUSINESS NAME
+            // =================================================
+
+            doc.setFontSize(18);
+            doc.setTextColor(...primary);
+
+            doc.text(
+                user?.businessName ||
+                    "Business Name",
+                pageWidth / 2,
+                39,
+                {
+                    align: "center",
+                }
+            );
+
+            doc.setDrawColor(...primary);
+            doc.setLineWidth(1);
+
+            doc.line(
+                pageWidth / 2 - 35,
+                42,
+                pageWidth / 2 + 35,
+                42
+            );
+
+            // =================================================
+            // BUSINESS INFO
+            // =================================================
+
+            let businessInfoY = 48;
+
+            if (user?.businessType) {
+                doc.setFont(
+                    "helvetica",
+                    "bold"
+                );
+
+                doc.setFontSize(9);
+                doc.setTextColor(...dark);
+
+                doc.text(
+                    user.businessType,
+                    pageWidth / 2,
+                    businessInfoY,
+                    {
+                        align: "center",
+                    }
+                );
+
+                businessInfoY += 5;
             }
-        );
 
-        // =================================================
-        // TAX INVOICE
-        // =================================================
+            if (user?.businessDescription) {
+                doc.setFont(
+                    "helvetica",
+                    "normal"
+                );
 
-        doc.setFont(
-            "helvetica",
-            "bold"
-        );
+                doc.setFontSize(8);
+                doc.setTextColor(...gray);
 
-        doc.setFontSize(15);
-        doc.setTextColor(...dark);
+                const descriptionLines =
+                    doc.splitTextToSize(
+                        user.businessDescription,
+                        150
+                    );
 
-        doc.text(
-            "TAX INVOICE",
-            pageWidth / 2,
-            29,
-            {
-                align: "center",
+                doc.text(
+                    descriptionLines,
+                    pageWidth / 2,
+                    businessInfoY,
+                    {
+                        align: "center",
+                    }
+                );
+
+                businessInfoY +=
+                    descriptionLines.length * 4;
             }
-        );
 
-        // =================================================
-        // BUSINESS NAME
-        // =================================================
+            if (user?.businessAddress) {
+                doc.setFont(
+                    "helvetica",
+                    "normal"
+                );
 
-        doc.setFontSize(18);
-        doc.setTextColor(...primary);
+                doc.setFontSize(8);
+                doc.setTextColor(...gray);
 
-        doc.text(
-            user?.businessName ||
-                "Business Name",
-            pageWidth / 2,
-            39,
-            {
-                align: "center",
+                const addressLines =
+                    doc.splitTextToSize(
+                        user.businessAddress,
+                        150
+                    );
+
+                doc.text(
+                    addressLines,
+                    pageWidth / 2,
+                    businessInfoY + 1,
+                    {
+                        align: "center",
+                    }
+                );
+
+                businessInfoY +=
+                    addressLines.length * 4 +
+                    2;
             }
-        );
 
-        doc.setDrawColor(...primary);
-        doc.setLineWidth(1);
+            // =================================================
+            // HEADER LINE
+            // =================================================
 
-        doc.line(
-            pageWidth / 2 - 35,
-            42,
-            pageWidth / 2 + 35,
-            42
-        );
+            const headerLineY =
+                Math.max(
+                    businessInfoY + 4,
+                    68
+                );
 
-        // =================================================
-        // BUSINESS INFO
-        // =================================================
+            doc.setDrawColor(...lightGray);
+            doc.setLineWidth(0.5);
 
-        let businessInfoY = 48;
+            doc.line(
+                left,
+                headerLineY,
+                right,
+                headerLineY
+            );
 
-        if (user?.businessType) {
+            // =================================================
+            // INVOICE DETAILS + BILL TO
+            // =================================================
+
+            const infoTop =
+                headerLineY + 6;
+
             doc.setFont(
                 "helvetica",
                 "bold"
@@ -480,18 +582,21 @@ function InvoicePreview() {
             doc.setTextColor(...dark);
 
             doc.text(
-                user.businessType,
-                pageWidth / 2,
-                businessInfoY,
-                {
-                    align: "center",
-                }
+                "INVOICE DETAILS",
+                left,
+                infoTop
             );
 
-            businessInfoY += 5;
-        }
+            doc.text(
+                "BILL TO",
+                pageWidth / 2 + 5,
+                infoTop
+            );
 
-        if (user?.businessDescription) {
+            // =================================================
+            // INVOICE DETAILS
+            // =================================================
+
             doc.setFont(
                 "helvetica",
                 "normal"
@@ -500,554 +605,401 @@ function InvoicePreview() {
             doc.setFontSize(8);
             doc.setTextColor(...gray);
 
-            const descriptionLines =
-                doc.splitTextToSize(
-                    user.businessDescription,
-                    150
-                );
-
             doc.text(
-                descriptionLines,
-                pageWidth / 2,
-                businessInfoY,
-                {
-                    align: "center",
-                }
+                `Invoice No: ${
+                    invoice.invoiceNumber ||
+                    "-"
+                }`,
+                left,
+                infoTop + 7
             );
 
-            businessInfoY +=
-                descriptionLines.length * 4;
-        }
+            doc.text(
+                `Date: ${formatDate(
+                    invoice.invoiceDate
+                )}`,
+                left,
+                infoTop + 14
+            );
 
-        if (user?.businessAddress) {
+            doc.text(
+                `Sale Type: ${saleType}`,
+                left,
+                infoTop + 21
+            );
+
+            let extraInfoY =
+                infoTop + 28;
+
+            if (orderNo) {
+                doc.text(
+                    `Order No: ${orderNo}`,
+                    left,
+                    extraInfoY
+                );
+
+                extraInfoY += 6;
+            }
+
+            if (ewayBillNo) {
+                doc.text(
+                    `E-Way Bill No: ${ewayBillNo}`,
+                    left,
+                    extraInfoY
+                );
+            }
+
+            // =================================================
+            // BILL TO
+            // =================================================
+
+            const customerX =
+                pageWidth / 2 + 5;
+
+            doc.setFont(
+                "helvetica",
+                "bold"
+            );
+
+            doc.setTextColor(...dark);
+
+            doc.text(
+                invoice.customer?.name ||
+                    "-",
+                customerX,
+                infoTop + 7
+            );
+
             doc.setFont(
                 "helvetica",
                 "normal"
             );
 
-            doc.setFontSize(8);
             doc.setTextColor(...gray);
 
-            const addressLines =
-                doc.splitTextToSize(
-                    user.businessAddress,
-                    150
+            let customerY =
+                infoTop + 13;
+
+            if (invoice.customer?.address) {
+                const addressLines =
+                    doc.splitTextToSize(
+                        invoice.customer.address,
+                        75
+                    );
+
+                doc.text(
+                    addressLines,
+                    customerX,
+                    customerY
                 );
 
-            doc.text(
-                addressLines,
+                customerY +=
+                    addressLines.length * 4;
+            }
+
+            if (invoice.customer?.gstin) {
+                doc.text(
+                    `GSTIN: ${invoice.customer.gstin}`,
+                    customerX,
+                    customerY
+                );
+
+                customerY += 4.5;
+            }
+
+            if (invoice.customer?.phone) {
+                doc.text(
+                    `Mobile: ${invoice.customer.phone}`,
+                    customerX,
+                    customerY
+                );
+
+                customerY += 4.5;
+            }
+
+            if (invoice.customer?.email) {
+                doc.text(
+                    `Email: ${invoice.customer.email}`,
+                    customerX,
+                    customerY
+                );
+            }
+
+            // =================================================
+            // VERTICAL DIVIDER
+            // =================================================
+
+            doc.setDrawColor(...lightGray);
+
+            doc.line(
                 pageWidth / 2,
-                businessInfoY + 1,
-                {
-                    align: "center",
-                }
+                infoTop - 4,
+                pageWidth / 2,
+                infoTop + 38
             );
 
-            businessInfoY +=
-                addressLines.length * 4 +
-                2;
-        }
+            // =================================================
+            // TABLE
+            // =================================================
 
-        // =================================================
-        // HEADER LINE
-        // =================================================
+            const tableData =
+                items.map(
+                    (item, index) => [
+                        index + 1,
 
-        const headerLineY =
-            Math.max(
-                businessInfoY + 4,
-                68
-            );
+                        item.description ||
+                            "-",
 
-        doc.setDrawColor(...lightGray);
-        doc.setLineWidth(0.5);
+                        item.hsn ||
+                            "-",
 
-        doc.line(
-            left,
-            headerLineY,
-            right,
-            headerLineY
-        );
+                        item.quantity ||
+                            0,
 
-        // =================================================
-        // INVOICE DETAILS + BILL TO
-        // =================================================
+                        item.unit ||
+                            "Piece",
 
-        const infoTop =
-            headerLineY + 6;
+                        formatPDFCurrency(
+                            item.rate
+                        ),
 
-        doc.setFont(
-            "helvetica",
-            "bold"
-        );
+                        `${
+                            item.gstRate || 0
+                        }%`,
 
-        doc.setFontSize(9);
-        doc.setTextColor(...dark);
-
-        doc.text(
-            "INVOICE DETAILS",
-            left,
-            infoTop
-        );
-
-        doc.text(
-            "BILL TO",
-            pageWidth / 2 + 5,
-            infoTop
-        );
-
-        // =================================================
-        // INVOICE DETAILS
-        // =================================================
-
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
-
-        doc.setFontSize(8);
-        doc.setTextColor(...gray);
-
-        doc.text(
-            `Invoice No: ${
-                invoice.invoiceNumber ||
-                "-"
-            }`,
-            left,
-            infoTop + 7
-        );
-
-        doc.text(
-            `Date: ${formatDate(
-                invoice.invoiceDate
-            )}`,
-            left,
-            infoTop + 14
-        );
-
-        doc.text(
-            `Sale Type: ${saleType}`,
-            left,
-            infoTop + 21
-        );
-
-        let extraInfoY =
-            infoTop + 28;
-
-        if (orderNo) {
-            doc.text(
-                `Order No: ${orderNo}`,
-                left,
-                extraInfoY
-            );
-
-            extraInfoY += 6;
-        }
-
-        if (ewayBillNo) {
-            doc.text(
-                `E-Way Bill No: ${ewayBillNo}`,
-                left,
-                extraInfoY
-            );
-        }
-
-        // =================================================
-        // BILL TO
-        // =================================================
-
-        const customerX =
-            pageWidth / 2 + 5;
-
-        doc.setFont(
-            "helvetica",
-            "bold"
-        );
-
-        doc.setTextColor(...dark);
-
-        doc.text(
-            invoice.customer?.name ||
-                "-",
-            customerX,
-            infoTop + 7
-        );
-
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
-
-        doc.setTextColor(...gray);
-
-        let customerY =
-            infoTop + 13;
-
-        if (invoice.customer?.address) {
-            const addressLines =
-                doc.splitTextToSize(
-                    invoice.customer.address,
-                    75
-                );
-
-            doc.text(
-                addressLines,
-                customerX,
-                customerY
-            );
-
-            customerY +=
-                addressLines.length * 4;
-        }
-
-        if (invoice.customer?.gstin) {
-            doc.text(
-                `GSTIN: ${invoice.customer.gstin}`,
-                customerX,
-                customerY
-            );
-
-            customerY += 4.5;
-        }
-
-        if (invoice.customer?.phone) {
-            doc.text(
-                `Mobile: ${invoice.customer.phone}`,
-                customerX,
-                customerY
-            );
-
-            customerY += 4.5;
-        }
-
-        if (invoice.customer?.email) {
-            doc.text(
-                `Email: ${invoice.customer.email}`,
-                customerX,
-                customerY
-            );
-        }
-
-        // =================================================
-        // VERTICAL DIVIDER
-        // =================================================
-
-        doc.setDrawColor(...lightGray);
-
-        doc.line(
-            pageWidth / 2,
-            infoTop - 4,
-            pageWidth / 2,
-            infoTop + 38
-        );
-
-        // =================================================
-        // TABLE
-        // =================================================
-
-        const tableData =
-            items.map(
-                (item, index) => [
-                    index + 1,
-
-                    item.description ||
-                        "-",
-
-                    item.hsn ||
-                        "-",
-
-                    item.quantity ||
-                        0,
-
-                    item.unit ||
-                        "Piece",
-
-                    formatPDFCurrency(
-                        item.rate
-                    ),
-
-                    `${
-                        item.gstRate || 0
-                    }%`,
-
-                    formatPDFCurrency(
-                        item.amount ??
-                            (
-                                Number(
-                                    item.quantity
-                                ) *
-                                Number(
-                                    item.rate
+                        formatPDFCurrency(
+                            item.amount ??
+                                (
+                                    Number(
+                                        item.quantity
+                                    ) *
+                                    Number(
+                                        item.rate
+                                    )
                                 )
-                            )
-                    ),
-                ]
+                        ),
+                    ]
+                );
+
+            autoTable(doc, {
+                startY:
+                    infoTop + 45,
+
+                margin: {
+                    left,
+                    right: 14,
+                },
+
+                head: [
+                    [
+                        "S.No",
+                        "Description",
+                        "HSN",
+                        "Qty",
+                        "Unit",
+                        "Rate",
+                        "GST",
+                        "Amount",
+                    ],
+                ],
+
+                body: tableData,
+
+                theme: "grid",
+
+                styles: {
+                    font: "helvetica",
+                    fontSize: 8,
+                    cellPadding: 2.5,
+                    lineColor: [
+                        203,
+                        213,
+                        225,
+                    ],
+                    lineWidth: 0.25,
+                    textColor: [
+                        30,
+                        41,
+                        59,
+                    ],
+                    valign: "middle",
+                },
+
+                headStyles: {
+                    fontStyle: "bold",
+                    fontSize: 8,
+                    halign: "center",
+                    valign: "middle",
+                    fillColor: primary,
+                    textColor: [
+                        255,
+                        255,
+                        255,
+                    ],
+                },
+
+                bodyStyles: {
+                    minCellHeight: 8,
+                },
+
+                columnStyles: {
+                    0: {
+                        cellWidth: 12,
+                        halign: "center",
+                    },
+
+                    1: {
+                        cellWidth: 51,
+                    },
+
+                    2: {
+                        cellWidth: 18,
+                        halign: "center",
+                    },
+
+                    3: {
+                        cellWidth: 13,
+                        halign: "center",
+                    },
+
+                    4: {
+                        cellWidth: 17,
+                        halign: "center",
+                    },
+
+                    5: {
+                        cellWidth: 24,
+                        halign: "right",
+                    },
+
+                    6: {
+                        cellWidth: 16,
+                        halign: "center",
+                    },
+
+                    7: {
+                        cellWidth: 28,
+                        halign: "right",
+                    },
+                },
+            });
+
+            // =================================================
+            // SUMMARY
+            // =================================================
+
+            let finalY =
+                doc.lastAutoTable.finalY + 7;
+
+            const summaryX =
+                pageWidth - 78;
+
+            doc.setFont(
+                "helvetica",
+                "normal"
             );
 
-        autoTable(doc, {
-            startY:
-                infoTop + 45,
+            doc.setFontSize(8);
+            doc.setTextColor(...gray);
 
-            margin: {
-                left,
-                right: 14,
-            },
-
-            head: [
-                [
-                    "S.No",
-                    "Description",
-                    "HSN",
-                    "Qty",
-                    "Unit",
-                    "Rate",
-                    "GST",
-                    "Amount",
-                ],
-            ],
-
-            body: tableData,
-
-            theme: "grid",
-
-            styles: {
-                font: "helvetica",
-                fontSize: 8,
-                cellPadding: 2.5,
-                lineColor: [
-                    203,
-                    213,
-                    225,
-                ],
-                lineWidth: 0.25,
-                textColor: [
-                    30,
-                    41,
-                    59,
-                ],
-                valign: "middle",
-            },
-
-            headStyles: {
-                fontStyle: "bold",
-                fontSize: 8,
-                halign: "center",
-                valign: "middle",
-                fillColor: primary,
-                textColor: [
-                    255,
-                    255,
-                    255,
-                ],
-            },
-
-            bodyStyles: {
-                minCellHeight: 8,
-            },
-
-            columnStyles: {
-                0: {
-                    cellWidth: 12,
-                    halign: "center",
-                },
-
-                1: {
-                    cellWidth: 51,
-                },
-
-                2: {
-                    cellWidth: 18,
-                    halign: "center",
-                },
-
-                3: {
-                    cellWidth: 13,
-                    halign: "center",
-                },
-
-                4: {
-                    cellWidth: 17,
-                    halign: "center",
-                },
-
-                5: {
-                    cellWidth: 24,
-                    halign: "right",
-                },
-
-                6: {
-                    cellWidth: 16,
-                    halign: "center",
-                },
-
-                7: {
-                    cellWidth: 28,
-                    halign: "right",
-                },
-            },
-        });
-
-        // =================================================
-        // SUMMARY
-        // =================================================
-
-        let finalY =
-            doc.lastAutoTable.finalY + 7;
-
-        const summaryX =
-            pageWidth - 78;
-
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
-
-        doc.setFontSize(8);
-        doc.setTextColor(...gray);
-
-        doc.text(
-            "Subtotal:",
-            summaryX,
-            finalY
-        );
-
-        doc.text(
-            formatPDFCurrency(subtotal),
-            right,
-            finalY,
-            {
-                align: "right",
-            }
-        );
-
-        doc.text(
-            "CGST:",
-            summaryX,
-            finalY + 6
-        );
-
-        doc.text(
-            formatPDFCurrency(cgst),
-            right,
-            finalY + 6,
-            {
-                align: "right",
-            }
-        );
-
-        doc.text(
-            "SGST:",
-            summaryX,
-            finalY + 12
-        );
-
-        doc.text(
-            formatPDFCurrency(sgst),
-            right,
-            finalY + 12,
-            {
-                align: "right",
-            }
-        );
-
-        doc.setDrawColor(...lightGray);
-
-        doc.line(
-            summaryX - 3,
-            finalY + 17,
-            right,
-            finalY + 17
-        );
-
-        doc.setFont(
-            "helvetica",
-            "bold"
-        );
-
-        doc.setFontSize(11);
-        doc.setTextColor(...dark);
-
-        doc.text(
-            "TOTAL:",
-            summaryX,
-            finalY + 25
-        );
-
-        doc.setTextColor(...primary);
-
-        doc.text(
-            formatPDFCurrency(total),
-            right,
-            finalY + 25,
-            {
-                align: "right",
-            }
-        );
-
-        // =================================================
-        // AMOUNT IN WORDS
-        // =================================================
-
-        const wordsY =
-            finalY + 40;
-
-        doc.setFont(
-            "helvetica",
-            "bold"
-        );
-
-        doc.setFontSize(8);
-        doc.setTextColor(...dark);
-
-        doc.text(
-            "Amount in Words:",
-            left,
-            wordsY
-        );
-
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
-
-        doc.setTextColor(...gray);
-
-        const wordsLines =
-            doc.splitTextToSize(
-                numberToWords(total),
-                105
+            doc.text(
+                "Subtotal:",
+                summaryX,
+                finalY
             );
 
-        doc.text(
-            wordsLines,
-            left,
-            wordsY + 5
-        );
+            doc.text(
+                formatPDFCurrency(subtotal),
+                right,
+                finalY,
+                {
+                    align: "right",
+                }
+            );
 
-        // =================================================
-        // TERMS
-        // =================================================
+            doc.text(
+                "CGST:",
+                summaryX,
+                finalY + 6
+            );
 
-        let termsY =
-            wordsY +
-            16 +
-            wordsLines.length * 4;
+            doc.text(
+                formatPDFCurrency(cgst),
+                right,
+                finalY + 6,
+                {
+                    align: "right",
+                }
+            );
 
-        if (
-            termsAndConditions &&
-            termsAndConditions.trim()
-        ) {
+            doc.text(
+                "SGST:",
+                summaryX,
+                finalY + 12
+            );
+
+            doc.text(
+                formatPDFCurrency(sgst),
+                right,
+                finalY + 12,
+                {
+                    align: "right",
+                }
+            );
+
+            doc.setDrawColor(...lightGray);
+
+            doc.line(
+                summaryX - 3,
+                finalY + 17,
+                right,
+                finalY + 17
+            );
+
             doc.setFont(
                 "helvetica",
                 "bold"
             );
 
-            doc.setFontSize(9);
+            doc.setFontSize(11);
             doc.setTextColor(...dark);
 
             doc.text(
-                "TERMS & CONDITIONS",
+                "TOTAL:",
+                summaryX,
+                finalY + 25
+            );
+
+            doc.setTextColor(...primary);
+
+            doc.text(
+                formatPDFCurrency(total),
+                right,
+                finalY + 25,
+                {
+                    align: "right",
+                }
+            );
+
+            // =================================================
+            // AMOUNT IN WORDS
+            // =================================================
+
+            const wordsY =
+                finalY + 40;
+
+            doc.setFont(
+                "helvetica",
+                "bold"
+            );
+
+            doc.setFontSize(8);
+            doc.setTextColor(...dark);
+
+            doc.text(
+                "Amount in Words:",
                 left,
-                termsY
+                wordsY
             );
 
             doc.setFont(
@@ -1055,254 +1007,473 @@ function InvoicePreview() {
                 "normal"
             );
 
-            doc.setFontSize(7.5);
             doc.setTextColor(...gray);
 
-            const termsLines =
+            const wordsLines =
                 doc.splitTextToSize(
-                    termsAndConditions,
+                    numberToWords(total),
                     105
                 );
 
             doc.text(
-                termsLines,
+                wordsLines,
                 left,
-                termsY + 6
-            );
-        }
-
-        // =================================================
-        // SIGNATURE SECTION
-        // =================================================
-
-        const signatureX =
-            pageWidth - 78;
-
-        // Keep signature safely inside A4 page
-        const signatureY =
-            Math.min(
-                finalY + 48,
-                pageHeight - 58
+                wordsY + 5
             );
 
-        // Receiver signature line
-        doc.setDrawColor(...gray);
-        doc.setLineWidth(0.4);
+            // =================================================
+            // TERMS
+            // =================================================
 
-        doc.line(
-            signatureX,
-            signatureY,
-            right,
-            signatureY
-        );
+            let termsY =
+                wordsY +
+                16 +
+                wordsLines.length * 4;
 
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
+            if (
+                termsAndConditions &&
+                termsAndConditions.trim()
+            ) {
+                doc.setFont(
+                    "helvetica",
+                    "bold"
+                );
 
-        doc.setFontSize(8);
-        doc.setTextColor(...gray);
+                doc.setFontSize(9);
+                doc.setTextColor(...dark);
 
-        doc.text(
-            "Receiver Signature",
-            signatureX,
-            signatureY + 5
-        );
+                doc.text(
+                    "TERMS & CONDITIONS",
+                    left,
+                    termsY
+                );
 
-        // Business name
-        doc.setFont(
-            "helvetica",
-            "bold"
-        );
+                doc.setFont(
+                    "helvetica",
+                    "normal"
+                );
 
-        doc.setFontSize(9);
-        doc.setTextColor(...dark);
+                doc.setFontSize(7.5);
+                doc.setTextColor(...gray);
 
-        doc.text(
-            `For ${
-                user?.businessName ||
-                "Business Name"
-            }`,
-            right,
-            signatureY + 11,
-            {
-                align: "right",
-            }
-        );
-
-        // =================================================
-        // DIGITAL SIGNATURE
-        // =================================================
-
-        if (user?.signature) {
-            try {
-                const signatureProps =
-                    doc.getImageProperties(
-                        user.signature
+                const termsLines =
+                    doc.splitTextToSize(
+                        termsAndConditions,
+                        105
                     );
 
-                const maxSignatureWidth = 38;
-                const maxSignatureHeight = 13;
-
-                const scale = Math.min(
-                    maxSignatureWidth /
-                        signatureProps.width,
-
-                    maxSignatureHeight /
-                        signatureProps.height
-                );
-
-                const signatureWidth =
-                    signatureProps.width *
-                    scale;
-
-                const signatureHeight =
-                    signatureProps.height *
-                    scale;
-
-                const signatureImageX =
-                    signatureX +
-                    (43 - signatureWidth) /
-                        2;
-
-                const signatureImageY =
-                    signatureY + 13;
-
-                doc.addImage(
-                    user.signature,
-                    signatureProps.fileType ||
-                        "PNG",
-                    signatureImageX,
-                    signatureImageY,
-                    signatureWidth,
-                    signatureHeight
-                );
-            } catch (error) {
-                console.error(
-                    "Signature PDF error:",
-                    error
+                doc.text(
+                    termsLines,
+                    left,
+                    termsY + 6
                 );
             }
-        }
 
-        // =================================================
-        // BUSINESS STAMP
-        // =================================================
+            // =================================================
+            // BANK DETAILS
+            // =================================================
 
-        if (user?.businessStamp) {
-            try {
-                const stampProps =
-                    doc.getImageProperties(
-                        user.businessStamp
+            const hasBankDetails =
+                user?.bankDetails?.bankName ||
+                user?.bankDetails?.accountNumber ||
+                user?.bankDetails?.upiId;
+
+            let finalBankY = finalY;
+
+            if (hasBankDetails) {
+                doc.setFont(
+                    "helvetica",
+                    "bold"
+                );
+
+                doc.setFontSize(9);
+                doc.setTextColor(...dark);
+
+                doc.text(
+                    "PAYMENT DETAILS",
+                    left,
+                    finalBankY + 8
+                );
+
+                doc.setFont(
+                    "helvetica",
+                    "normal"
+                );
+
+                doc.setFontSize(7.5);
+                doc.setTextColor(...gray);
+
+                let bankY = finalBankY + 14;
+
+                if (
+                    user?.bankDetails
+                        ?.bankName
+                ) {
+                    doc.text(
+                        `Bank: ${user.bankDetails.bankName}`,
+                        left,
+                        bankY
                     );
 
-                const maxStampWidth = 38;
-                const maxStampHeight = 13;
+                    bankY += 4;
+                }
 
-                const scale = Math.min(
-                    maxStampWidth /
-                        stampProps.width,
+                if (
+                    user?.bankDetails
+                        ?.accountHolderName
+                ) {
+                    doc.text(
+                        `Acc. Holder: ${user.bankDetails.accountHolderName}`,
+                        left,
+                        bankY
+                    );
 
-                    maxStampHeight /
-                        stampProps.height
-                );
+                    bankY += 4;
+                }
 
-                const stampWidth =
-                    stampProps.width *
-                    scale;
+                if (
+                    user?.bankDetails
+                        ?.accountNumber
+                ) {
+                    doc.text(
+                        `Account No: ${user.bankDetails.accountNumber}`,
+                        left,
+                        bankY
+                    );
 
-                const stampHeight =
-                    stampProps.height *
-                    scale;
+                    bankY += 4;
+                }
 
-                const stampX =
-                    signatureX +
-                    43 +
-                    (22 - stampWidth) /
-                        2;
+                if (
+                    user?.bankDetails
+                        ?.ifscCode
+                ) {
+                    doc.text(
+                        `IFSC: ${user.bankDetails.ifscCode}`,
+                        left,
+                        bankY
+                    );
 
-                const stampY =
-                    signatureY + 13;
+                    bankY += 4;
+                }
 
-                doc.addImage(
-                    user.businessStamp,
-                    stampProps.fileType ||
-                        "PNG",
-                    stampX,
-                    stampY,
-                    stampWidth,
-                    stampHeight
-                );
-            } catch (error) {
-                console.error(
-                    "Stamp PDF error:",
-                    error
-                );
+                if (
+                    user?.bankDetails
+                        ?.upiId
+                ) {
+                    doc.text(
+                        `UPI: ${user.bankDetails.upiId}`,
+                        left,
+                        bankY
+                    );
+
+                    bankY += 4;
+                }
+
+                finalBankY = bankY;
             }
+
+            // =================================================
+            // SIGNATURE SECTION
+            // =================================================
+
+            const signatureX =
+                pageWidth - 78;
+
+            const signatureY =
+                Math.min(
+                    (hasBankDetails
+                        ? finalBankY
+                        : finalY) + 48,
+                    pageHeight - 58
+                );
+
+            doc.setDrawColor(...gray);
+            doc.setLineWidth(0.4);
+
+            doc.line(
+                signatureX,
+                signatureY,
+                right,
+                signatureY
+            );
+
+            doc.setFont(
+                "helvetica",
+                "normal"
+            );
+
+            doc.setFontSize(8);
+            doc.setTextColor(...gray);
+
+            doc.text(
+                "Receiver Signature",
+                signatureX,
+                signatureY + 5
+            );
+
+            doc.setFont(
+                "helvetica",
+                "bold"
+            );
+
+            doc.setFontSize(9);
+            doc.setTextColor(...dark);
+
+            doc.text(
+                `For ${
+                    user?.businessName ||
+                    "Business Name"
+                }`,
+                right,
+                signatureY + 11,
+                {
+                    align: "right",
+                }
+            );
+
+            // =================================================
+            // DIGITAL SIGNATURE
+            // =================================================
+
+            if (user?.signature) {
+                try {
+                    const signatureProps =
+                        doc.getImageProperties(
+                            user.signature
+                        );
+
+                    const maxSignatureWidth = 38;
+                    const maxSignatureHeight = 13;
+
+                    const scale = Math.min(
+                        maxSignatureWidth /
+                            signatureProps.width,
+
+                        maxSignatureHeight /
+                            signatureProps.height
+                    );
+
+                    const signatureWidth =
+                        signatureProps.width *
+                        scale;
+
+                    const signatureHeight =
+                        signatureProps.height *
+                        scale;
+
+                    const signatureImageX =
+                        signatureX +
+                        (43 - signatureWidth) /
+                            2;
+
+                    const signatureImageY =
+                        signatureY + 13;
+
+                    doc.addImage(
+                        user.signature,
+                        signatureProps.fileType ||
+                            "PNG",
+                        signatureImageX,
+                        signatureImageY,
+                        signatureWidth,
+                        signatureHeight
+                    );
+                } catch (error) {
+                    console.error(
+                        "Signature PDF error:",
+                        error
+                    );
+                }
+            }
+
+            // =================================================
+            // BUSINESS STAMP
+            // =================================================
+
+            if (user?.businessStamp) {
+                try {
+                    const stampProps =
+                        doc.getImageProperties(
+                            user.businessStamp
+                        );
+
+                    const maxStampWidth = 38;
+                    const maxStampHeight = 13;
+
+                    const scale = Math.min(
+                        maxStampWidth /
+                            stampProps.width,
+
+                        maxStampHeight /
+                            stampProps.height
+                    );
+
+                    const stampWidth =
+                        stampProps.width *
+                        scale;
+
+                    const stampHeight =
+                        stampProps.height *
+                        scale;
+
+                    const stampX =
+                        signatureX +
+                        43 +
+                        (22 - stampWidth) /
+                            2;
+
+                    const stampY =
+                        signatureY + 13;
+
+                    doc.addImage(
+                        user.businessStamp,
+                        stampProps.fileType ||
+                            "PNG",
+                        stampX,
+                        stampY,
+                        stampWidth,
+                        stampHeight
+                    );
+                } catch (error) {
+                    console.error(
+                        "Stamp PDF error:",
+                        error
+                    );
+                }
+            }
+
+            // =================================================
+            // AUTHORIZED SIGNATORY
+            // =================================================
+
+            doc.setFont(
+                "helvetica",
+                "normal"
+            );
+
+            doc.setFontSize(8);
+            doc.setTextColor(...gray);
+
+            doc.text(
+                "Authorized Signatory",
+                signatureX + 21,
+                signatureY + 31,
+                {
+                    align: "center",
+                }
+            );
+
+            // =================================================
+            // FOOTER
+            // =================================================
+
+            doc.setFont(
+                "helvetica",
+                "normal"
+            );
+
+            doc.setFontSize(7);
+            doc.setTextColor(...gray);
+
+            doc.text(
+                "Thank you for your business!",
+                pageWidth / 2,
+                pageHeight - 15,
+                {
+                    align: "center",
+                }
+            );
+
+            doc.text(
+                "Generated by InvoicePro",
+                pageWidth / 2,
+                pageHeight - 11,
+                {
+                    align: "center",
+                }
+            );
+
+            // =================================================
+            // FILE NAME
+            // =================================================
+
+            let fileName =
+                `${
+                    invoice.invoiceNumber ||
+                    "invoice"
+                }.pdf`;
+
+            // Android/Linux/Windows invalid filename characters remove
+            fileName = fileName.replace(
+                /[<>:"/\\|?*]/g,
+                "_"
+            );
+
+            // =================================================
+            // ANDROID / CAPACITOR
+            // =================================================
+
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    console.log("Starting Android PDF download...");
+
+                    const pdfDataUri = doc.output("datauristring");
+                    const pdfBase64 = pdfDataUri.split(",")[1];
+
+                    if (!pdfBase64) {
+                        throw new Error(
+                            "PDF base64 data could not be generated."
+                        );
+                    }
+
+                    // Save directly in the app's Documents folder.
+                    // This does NOT open the Android share sheet.
+                    const savedFile = await Filesystem.writeFile({
+                        path: `InvoicePro/${fileName}`,
+                        data: pdfBase64,
+                        directory: Directory.Documents,
+                        recursive: true,
+                    });
+
+                    console.log(
+                        "PDF saved successfully:",
+                        savedFile.uri
+                    );
+
+                    alert(
+                        `PDF downloaded successfully!\n\n${fileName}`
+                    );
+                } catch (error) {
+                    console.error(
+                        "Android PDF download error:",
+                        error
+                    );
+
+                    alert(
+                        "PDF download nahi ho paya. Please try again."
+                    );
+                }
+
+                return;
+            }
+
+            // =================================================
+            // WEB
+            // =================================================
+
+            doc.save(fileName);
+
+        } catch (error) {
+            console.error(
+                "PDF generation error:",
+                error
+            );
+
+            alert(
+                "PDF generate nahi ho paya. Please try again."
+            );
         }
-
-        // =================================================
-        // AUTHORIZED SIGNATORY
-        // =================================================
-
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
-
-        doc.setFontSize(8);
-        doc.setTextColor(...gray);
-
-        doc.text(
-            "Authorized Signatory",
-            signatureX + 21,
-            signatureY + 31,
-            {
-                align: "center",
-            }
-        );
-
-        // =================================================
-        // FOOTER
-        // =================================================
-
-        doc.setFont(
-            "helvetica",
-            "normal"
-        );
-
-        doc.setFontSize(7);
-        doc.setTextColor(...gray);
-
-        doc.text(
-            "Thank you for your business!",
-            pageWidth / 2,
-            pageHeight - 15,
-            {
-                align: "center",
-            }
-        );
-
-        doc.text(
-            "Generated by InvoicePro",
-            pageWidth / 2,
-            pageHeight - 11,
-            {
-                align: "center",
-            }
-        );
-
-        // =================================================
-        // SAVE
-        // =================================================
-
-        doc.save(
-            `${
-                invoice.invoiceNumber ||
-                "invoice"
-            }.pdf`
-        );
     };
 
     // =====================================================
@@ -1434,8 +1605,6 @@ function InvoicePreview() {
 
                 <div className="grid md:grid-cols-2 gap-8 mt-7">
 
-                    {/* LEFT */}
-
                     <div>
 
                         <p className="text-xs uppercase tracking-wide text-slate-400">
@@ -1486,8 +1655,6 @@ function InvoicePreview() {
                         )}
 
                     </div>
-
-                    {/* RIGHT */}
 
                     <div className="md:border-l md:pl-8">
 
@@ -1782,6 +1949,104 @@ function InvoicePreview() {
                 )}
 
                 {/* =================================================
+                    BANK DETAILS
+                ================================================= */}
+
+                {(user?.bankDetails?.bankName ||
+                    user?.bankDetails?.accountNumber ||
+                    user?.bankDetails?.upiId) && (
+                    <div className="border-t border-slate-200 mt-8 pt-6">
+
+                        <p className="font-semibold text-slate-700">
+                            Payment Details
+                        </p>
+
+                        <div className="text-sm text-slate-600 mt-3 space-y-1">
+
+                            {user?.bankDetails
+                                ?.bankName && (
+                                <p>
+                                    <span className="font-medium">
+                                        Bank:
+                                    </span>{" "}
+                                    {
+                                        user.bankDetails
+                                            .bankName
+                                    }
+                                </p>
+                            )}
+
+                            {user?.bankDetails
+                                ?.accountHolderName && (
+                                <p>
+                                    <span className="font-medium">
+                                        Account Holder:
+                                    </span>{" "}
+                                    {
+                                        user.bankDetails
+                                            .accountHolderName
+                                    }
+                                </p>
+                            )}
+
+                            {user?.bankDetails
+                                ?.accountNumber && (
+                                <p>
+                                    <span className="font-medium">
+                                        Account No:
+                                    </span>{" "}
+                                    {
+                                        user.bankDetails
+                                            .accountNumber
+                                    }
+                                </p>
+                            )}
+
+                            {user?.bankDetails
+                                ?.ifscCode && (
+                                <p>
+                                    <span className="font-medium">
+                                        IFSC:
+                                    </span>{" "}
+                                    {
+                                        user.bankDetails
+                                            .ifscCode
+                                    }
+                                </p>
+                            )}
+
+                            {user?.bankDetails
+                                ?.branch && (
+                                <p>
+                                    <span className="font-medium">
+                                        Branch:
+                                    </span>{" "}
+                                    {
+                                        user.bankDetails
+                                            .branch
+                                    }
+                                </p>
+                            )}
+
+                            {user?.bankDetails
+                                ?.upiId && (
+                                <p>
+                                    <span className="font-medium">
+                                        UPI ID:
+                                    </span>{" "}
+                                    {
+                                        user.bankDetails
+                                            .upiId
+                                    }
+                                </p>
+                            )}
+
+                        </div>
+
+                    </div>
+                )}
+
+                {/* =================================================
                     SIGNATURE
                 ================================================= */}
 
@@ -1799,7 +2064,6 @@ function InvoicePreview() {
                                 "Business Name"}
                         </div>
 
-                        {/* Reduced height */}
                         <div className="flex items-center justify-center gap-2 h-16 mt-1">
 
                             {user?.signature && (

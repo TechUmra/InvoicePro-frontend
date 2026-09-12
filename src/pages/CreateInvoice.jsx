@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 function CreateInvoice() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // =============================
     // INVOICE DETAILS
@@ -31,34 +32,13 @@ function CreateInvoice() {
         phone: "",
         email: "",
     });
+
     // =============================
-// CUSTOMER & PRODUCT CATALOG
-// =============================
+    // CUSTOMER & PRODUCT CATALOG
+    // =============================
 
-const [customers, setCustomers] = useState([]);
-const [products, setProducts] = useState([]);
-
-useEffect(() => {
-    const loadCatalogData = async () => {
-        try {
-            const [customerResponse, productResponse] =
-                await Promise.all([
-                    API.get("/customers"),
-                    API.get("/products"),
-                ]);
-
-            setCustomers(customerResponse.data.customers || []);
-            setProducts(productResponse.data.products || []);
-        } catch (error) {
-            console.error(
-                "Error loading customer/product catalog:",
-                error
-            );
-        }
-    };
-
-    loadCatalogData();
-}, []);
+    const [customers, setCustomers] = useState([]);
+    const [products, setProducts] = useState([]);
 
     // =============================
     // PRODUCTS
@@ -76,7 +56,7 @@ useEffect(() => {
     ]);
 
     // =============================
-    // TERMS & CONDITIONS
+    // TERMS
     // =============================
 
     const [termsAndConditions, setTermsAndConditions] =
@@ -91,38 +71,149 @@ useEffect(() => {
     const [loading, setLoading] = useState(false);
 
     // =============================
+    // EDIT MODE
+    // =============================
+
+    const [editingInvoiceId, setEditingInvoiceId] =
+        useState(null);
+
+    // =============================
+    // LOAD CATALOG DATA
+    // =============================
+
+    const loadCatalogData = async () => {
+        try {
+            const [
+                customerResponse,
+                productResponse,
+            ] = await Promise.all([
+                API.get("/customers"),
+                API.get("/products"),
+            ]);
+
+            setCustomers(
+                customerResponse.data.customers || []
+            );
+
+            setProducts(
+                productResponse.data.products || []
+            );
+        } catch (error) {
+            console.error(
+                "Error loading customer/product catalog:",
+                error
+            );
+        }
+    };
+
+    // =============================
+    // INITIAL LOAD
+    // =============================
+
+    useEffect(() => {
+        loadCatalogData();
+    }, []);
+
+    // =============================
+    // RESET FORM
+    // =============================
+
+    const resetForm = () => {
+        setInvoiceNumber("");
+
+        setInvoiceDate(
+            new Date().toISOString().split("T")[0]
+        );
+
+        setDueDate("");
+        setStatus("Pending");
+
+        setSaleType("Sale");
+        setOrderNo("");
+        setEwayBillNo("");
+
+        setCustomer({
+            name: "",
+            gstin: "",
+            address: "",
+            phone: "",
+            email: "",
+        });
+
+        setItems([
+            {
+                description: "",
+                hsn: "",
+                gstRate: 18,
+                quantity: 1,
+                unit: "Piece",
+                rate: 0,
+            },
+        ]);
+
+        setTermsAndConditions("");
+        setEditingInvoiceId(null);
+        setMessage("");
+        setError("");
+    };
+
+    // =============================
+    // NEW INVOICE
+    // =============================
+
+    const handleNewInvoice = () => {
+        resetForm();
+
+        navigate("/create-invoice", {
+            replace: true,
+            state: {},
+        });
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    };
+
+    // =============================
     // CUSTOMER CHANGE
     // =============================
 
     const handleCustomerChange = (e) => {
-    const { name, value } = e.target;
+        const { name, value } = e.target;
 
-    // If customer name is selected from catalog
-    if (name === "name") {
-        const selectedCustomer = customers.find(
-            (existingCustomer) =>
-                existingCustomer.name.toLowerCase() ===
-                value.trim().toLowerCase()
-        );
+        if (name === "name") {
+            const selectedCustomer = customers.find(
+                (existingCustomer) =>
+                    existingCustomer.name
+                        ?.toLowerCase()
+                        .trim() ===
+                    value.toLowerCase().trim()
+            );
 
-        if (selectedCustomer) {
-            setCustomer({
-                name: selectedCustomer.name || "",
-                gstin: selectedCustomer.gstin || "",
-                address: selectedCustomer.address || "",
-                phone: selectedCustomer.phone || "",
-                email: selectedCustomer.email || "",
-            });
+            if (selectedCustomer) {
+                setCustomer({
+                    name:
+                        selectedCustomer.name || "",
+                    gstin:
+                        selectedCustomer.gstin || "",
+                    address:
+                        selectedCustomer.address || "",
+                    phone:
+                        selectedCustomer.phone || "",
+                    email:
+                        selectedCustomer.email || "",
+                });
 
-            return;
+                return;
+            }
         }
-    }
 
-    setCustomer({
-        ...customer,
-        [name]: value,
-    });
-};
+        setCustomer({
+            ...customer,
+            [name]: value,
+        });
+    };
 
     // =============================
     // ITEM CHANGE
@@ -229,7 +320,272 @@ useEffect(() => {
     };
 
     // =============================
-    // CREATE INVOICE
+    // EDIT INVOICE
+    // =============================
+
+    const handleEditInvoice = (invoice) => {
+        if (!invoice) return;
+
+        setEditingInvoiceId(invoice._id);
+
+        setInvoiceNumber(
+            invoice.invoiceNumber || ""
+        );
+
+        setInvoiceDate(
+            invoice.invoiceDate
+                ? new Date(invoice.invoiceDate)
+                      .toISOString()
+                      .split("T")[0]
+                : new Date()
+                      .toISOString()
+                      .split("T")[0]
+        );
+
+        setDueDate(
+            invoice.dueDate
+                ? new Date(invoice.dueDate)
+                      .toISOString()
+                      .split("T")[0]
+                : ""
+        );
+
+        setStatus(
+            invoice.status || "Pending"
+        );
+
+        setSaleType(
+            invoice.saleType || "Sale"
+        );
+
+        setOrderNo(
+            invoice.orderNo || ""
+        );
+
+        setEwayBillNo(
+            invoice.ewayBillNo || ""
+        );
+
+        setCustomer({
+            name:
+                invoice.customer?.name || "",
+            gstin:
+                invoice.customer?.gstin || "",
+            address:
+                invoice.customer?.address || "",
+            phone:
+                invoice.customer?.phone || "",
+            email:
+                invoice.customer?.email || "",
+        });
+
+        const invoiceItems =
+            invoice.items &&
+            Array.isArray(invoice.items) &&
+            invoice.items.length > 0
+                ? invoice.items.map((item) => ({
+                      description:
+                          item.description || "",
+                      hsn: item.hsn || "",
+                      gstRate:
+                          item.gstRate ?? 18,
+                      quantity:
+                          item.quantity ?? 1,
+                      unit:
+                          item.unit || "Piece",
+                      rate:
+                          item.rate ?? 0,
+                  }))
+                : [
+                      {
+                          description: "",
+                          hsn: "",
+                          gstRate: 18,
+                          quantity: 1,
+                          unit: "Piece",
+                          rate: 0,
+                      },
+                  ];
+
+        setItems(invoiceItems);
+
+        setTermsAndConditions(
+            invoice.termsAndConditions || ""
+        );
+
+        setMessage(
+            `Editing ${
+                invoice.invoiceNumber ||
+                "invoice"
+            } ✏️`
+        );
+
+        setError("");
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    };
+
+    // =============================
+    // OPEN SIDEBAR INVOICE
+    // =============================
+
+    useEffect(() => {
+        const invoiceToEdit =
+            location.state?.editInvoice;
+
+        if (invoiceToEdit) {
+            handleEditInvoice(invoiceToEdit);
+
+            navigate("/create-invoice", {
+                replace: true,
+                state: {},
+            });
+        }
+    }, [location.state]);
+
+    // =============================
+    // AUTO SAVE CUSTOMER
+    // =============================
+
+    const autoSaveCustomer = async () => {
+        try {
+            if (
+                !customer.name.trim() ||
+                !customer.phone.trim()
+            ) {
+                return;
+            }
+
+            const existingCustomer =
+                customers.find(
+                    (existingCustomer) =>
+                        existingCustomer.name
+                            ?.toLowerCase()
+                            .trim() ===
+                            customer.name
+                                .toLowerCase()
+                                .trim() &&
+                        existingCustomer.phone ===
+                            customer.phone
+                );
+
+            if (existingCustomer) {
+                await API.put(
+                    `/customers/${existingCustomer._id}`,
+                    {
+                        name: customer.name,
+                        gstin: customer.gstin,
+                        address: customer.address,
+                        phone: customer.phone,
+                        email: customer.email,
+                    }
+                );
+            } else {
+                await API.post(
+                    "/customers",
+                    {
+                        name: customer.name,
+                        gstin: customer.gstin,
+                        address: customer.address,
+                        phone: customer.phone,
+                        email: customer.email,
+                    }
+                );
+            }
+        } catch (customerError) {
+            console.error(
+                "Customer auto-save error:",
+                customerError
+            );
+        }
+    };
+
+    // =============================
+    // SAVE PRODUCTS
+    // =============================
+
+    const autoSaveProducts = async () => {
+        for (const item of calculatedItems) {
+            try {
+                if (
+                    !item.description.trim() ||
+                    !item.hsn.trim() ||
+                    Number(item.rate) <= 0
+                ) {
+                    continue;
+                }
+
+                const existingProduct =
+                    products.find(
+                        (product) =>
+                            product.name
+                                ?.toLowerCase()
+                                .trim() ===
+                                item.description
+                                    .toLowerCase()
+                                    .trim() &&
+                            (
+                                product.hsn ||
+                                product.sac ||
+                                ""
+                            )
+                                .toLowerCase()
+                                .trim() ===
+                                item.hsn
+                                    .toLowerCase()
+                                    .trim()
+                    );
+
+                const productUnit =
+                    item.unit === "Piece"
+                        ? "Pcs"
+                        : item.unit || "Pcs";
+
+                if (existingProduct) {
+                    await API.put(
+                        `/products/${existingProduct._id}`,
+                        {
+                            name: item.description,
+                            hsn: item.hsn,
+                            rate: Number(
+                                item.rate
+                            ),
+                            unit: productUnit,
+                            gstRate: Number(
+                                item.gstRate
+                            ),
+                        }
+                    );
+                } else {
+                    await API.post(
+                        "/products",
+                        {
+                            name: item.description,
+                            hsn: item.hsn,
+                            rate: Number(
+                                item.rate
+                            ),
+                            unit: productUnit,
+                            gstRate: Number(
+                                item.gstRate
+                            ),
+                        }
+                    );
+                }
+            } catch (productError) {
+                console.error(
+                    "Product auto-save error:",
+                    productError
+                );
+            }
+        }
+    };
+
+    // =============================
+    // CREATE / UPDATE INVOICE
     // =============================
 
     const handleSubmit = async (e) => {
@@ -239,12 +595,16 @@ useEffect(() => {
         setError("");
 
         if (!invoiceNumber.trim()) {
-            setError("Please enter invoice number.");
+            setError(
+                "Please enter invoice number."
+            );
             return;
         }
 
         if (!customer.name.trim()) {
-            setError("Please enter customer name.");
+            setError(
+                "Please enter customer name."
+            );
             return;
         }
 
@@ -256,7 +616,9 @@ useEffect(() => {
                     Number(item.rate) < 0
             )
         ) {
-            setError("Please complete all product details.");
+            setError(
+                "Please complete all product details."
+            );
             return;
         }
 
@@ -264,190 +626,163 @@ useEffect(() => {
 
         try {
             const invoiceData = {
-                invoiceNumber,
+                invoiceNumber:
+                    invoiceNumber.trim(),
+
                 invoiceDate,
-                dueDate: dueDate || null,
+
+                dueDate:
+                    dueDate || null,
+
                 status,
+
                 saleType,
+
                 orderNo,
+
                 ewayBillNo,
+
                 customer,
-                items: calculatedItems.map((item) => ({
-                    description: item.description,
-                    hsn: item.hsn,
-                    gstRate: item.gstRate,
-                    quantity: item.quantity,
-                    unit: item.unit,
-                    rate: item.rate,
-                    amount: item.amount,
-                    gstAmount: item.gstAmount,
-                    totalAmount: item.totalAmount,
-                })),
+
+                items: calculatedItems.map(
+                    (item) => ({
+                        description:
+                            item.description,
+                        hsn: item.hsn,
+                        gstRate:
+                            item.gstRate,
+                        quantity:
+                            item.quantity,
+                        unit:
+                            item.unit,
+                        rate:
+                            item.rate,
+                        amount:
+                            item.amount,
+                        gstAmount:
+                            item.gstAmount,
+                        totalAmount:
+                            item.totalAmount,
+                    })
+                ),
+
                 subtotal,
                 cgst,
                 sgst,
                 total,
-                termsAndConditions: termsAndConditions.trim(),
+
+                termsAndConditions:
+                    termsAndConditions.trim(),
             };
 
-            const response = await API.post(
-    "/invoices",
-    invoiceData
-);
+            let response;
 
-// =============================
-// AUTO-SAVE CUSTOMER
-// =============================
+            // =============================
+            // UPDATE EXISTING
+            // =============================
 
-try {
-    // Customer model requires phone,
-    // so only save when phone is available.
-    if (
-        customer.name.trim() &&
-        customer.phone.trim()
-    ) {
-        const existingCustomer = customers.find(
-            (existingCustomer) =>
-                existingCustomer.name
-                    .toLowerCase()
-                    .trim() ===
-                    customer.name
-                        .toLowerCase()
-                        .trim() &&
-                existingCustomer.phone ===
-                    customer.phone
-        );
+            if (editingInvoiceId) {
+                response = await API.put(
+                    `/invoices/${editingInvoiceId}`,
+                    invoiceData
+                );
+            }
 
-        if (existingCustomer) {
-            // Update existing customer details
-            await API.put(
-                `/customers/${existingCustomer._id}`,
-                {
-                    name: customer.name,
-                    gstin: customer.gstin,
-                    address: customer.address,
-                    phone: customer.phone,
-                    email: customer.email,
-                }
+            // =============================
+            // CREATE NEW
+            // =============================
+
+            else {
+                response = await API.post(
+                    "/invoices",
+                    invoiceData
+                );
+            }
+
+            // =============================
+            // AUTO SAVE CUSTOMER
+            // =============================
+
+            await autoSaveCustomer();
+
+            // =============================
+            // AUTO SAVE PRODUCTS
+            // =============================
+
+            await autoSaveProducts();
+
+            const savedInvoice =
+                response.data.invoice;
+
+            // =============================
+            // SUCCESS
+            // =============================
+
+            setMessage(
+                editingInvoiceId
+                    ? "Invoice updated successfully! 🎉"
+                    : "Invoice created successfully! 🎉"
             );
-        } else {
-            // Create new customer
-            await API.post("/customers", {
-                name: customer.name,
-                gstin: customer.gstin,
-                address: customer.address,
-                phone: customer.phone,
-                email: customer.email,
-            });
-        }
-    }
-} catch (customerError) {
-    console.error(
-        "Customer auto-save error:",
-        customerError
-    );
-}
 
-// =============================
-// AUTO-SAVE PRODUCTS
-// =============================
+            setEditingInvoiceId(null);
 
-for (const item of calculatedItems) {
-    try {
-        // Product model requires HSN and rate
-        if (
-            !item.description.trim() ||
-            !item.hsn.trim() ||
-            Number(item.rate) <= 0
-        ) {
-            continue;
-        }
-
-        const existingProduct = products.find(
-            (product) =>
-                product.name
-                    .toLowerCase()
-                    .trim() ===
-                    item.description
-                        .toLowerCase()
-                        .trim() &&
-                (
-                    product.hsn ||
-                    product.sac ||
-                    ""
-                )
-                    .toLowerCase()
-                    .trim() ===
-                    item.hsn
-                        .toLowerCase()
-                        .trim()
-        );
-
-        // Product schema accepts Pcs, not Piece
-        const productUnit =
-            item.unit === "Piece"
-                ? "Pcs"
-                : item.unit || "Pcs";
-
-        if (existingProduct) {
-            // Update existing product instead of creating duplicate
-            await API.put(
-                `/products/${existingProduct._id}`,
-                {
-                    name: item.description,
-                    hsn: item.hsn,
-                    rate: Number(item.rate),
-                    unit: productUnit,
-                    gstRate: Number(item.gstRate),
-                }
-            );
-        } else {
-            // Create new product
-            await API.post("/products", {
-                name: item.description,
-                hsn: item.hsn,
-                rate: Number(item.rate),
-                unit: productUnit,
-                gstRate: Number(item.gstRate),
-            });
-        }
-    } catch (productError) {
-        console.error(
-            "Product auto-save error:",
-            productError
-        );
-    }
-}
-
-setMessage(
-    "Invoice created successfully! 🎉"
-);
+            // =============================
+            // OPEN PREVIEW
+            // =============================
 
             navigate("/invoice-preview", {
                 state: {
-                    invoice:
-                        response.data.invoice,
+                    invoice: savedInvoice,
                 },
             });
         } catch (error) {
             console.error(
-                "Create invoice error:",
+                "Save invoice error:",
                 error
             );
 
             setError(
                 error.response?.data?.message ||
-                    "Failed to create invoice."
+                    "Failed to save invoice."
             );
         } finally {
             setLoading(false);
         }
     };
 
+    // =============================
+    // FORMAT DATE
+    // =============================
+
+    const formatDate = (date) => {
+        if (!date) return "-";
+
+        const parsedDate = new Date(date);
+
+        if (Number.isNaN(parsedDate.getTime())) {
+            return "-";
+        }
+
+        return parsedDate.toLocaleDateString(
+            "en-IN",
+            {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+            }
+        );
+    };
+
+    // =============================
+    // PAGE
+    // =============================
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
 
-            {/* HEADER */}
+            {/* =============================
+                HEADER
+            ============================= */}
 
             <div className="max-w-7xl mx-auto mb-8">
 
@@ -460,18 +795,37 @@ setMessage(
                     ← Back to Dashboard
                 </button>
 
-                <h1 className="text-3xl font-bold text-slate-800">
-                    Create Invoice 🧾
-                </h1>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-                <p className="text-slate-500 mt-1">
-                    Create a professional invoice
-                    for your customer.
-                </p>
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-800">
+                            {editingInvoiceId
+                                ? "Edit Invoice ✏️"
+                                : "Create New Invoice 🧾"}
+                        </h1>
+
+                        <p className="text-slate-500 mt-1">
+                            {editingInvoiceId
+                                ? "Update your existing invoice details."
+                                : "Create a new professional invoice."}
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleNewInvoice}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm"
+                    >
+                        + New Invoice
+                    </button>
+
+                </div>
 
             </div>
 
-            {/* MESSAGES */}
+            {/* =============================
+                MESSAGES
+            ============================= */}
 
             <div className="max-w-7xl mx-auto">
 
@@ -487,11 +841,11 @@ setMessage(
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit}>
+                {/* =============================
+                    INVOICE DETAILS
+                ============================= */}
 
-                    {/* =============================
-                        INVOICE DETAILS
-                    ============================= */}
+                <form onSubmit={handleSubmit}>
 
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
 
@@ -505,10 +859,15 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     Invoice Number
                                 </label>
+
                                 <input
                                     type="text"
                                     value={invoiceNumber}
-                                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                                    onChange={(e) =>
+                                        setInvoiceNumber(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="INV-0001"
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                     required
@@ -519,10 +878,15 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     Invoice Date
                                 </label>
+
                                 <input
                                     type="date"
                                     value={invoiceDate}
-                                    onChange={(e) => setInvoiceDate(e.target.value)}
+                                    onChange={(e) =>
+                                        setInvoiceDate(
+                                            e.target.value
+                                        )
+                                    }
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                     required
                                 />
@@ -532,10 +896,15 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     Due Date
                                 </label>
+
                                 <input
                                     type="date"
                                     value={dueDate}
-                                    onChange={(e) => setDueDate(e.target.value)}
+                                    onChange={(e) =>
+                                        setDueDate(
+                                            e.target.value
+                                        )
+                                    }
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                 />
                             </div>
@@ -544,13 +913,27 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     Status
                                 </label>
+
                                 <select
                                     value={status}
-                                    onChange={(e) => setStatus(e.target.value)}
+                                    onChange={(e) =>
+                                        setStatus(
+                                            e.target.value
+                                        )
+                                    }
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                 >
-                                    <option value="Pending">Pending</option>
-                                    <option value="Paid">Paid</option>
+                                    <option value="Pending">
+                                        Pending
+                                    </option>
+
+                                    <option value="Paid">
+                                        Paid
+                                    </option>
+
+                                    <option value="Overdue">
+                                        Overdue
+                                    </option>
                                 </select>
                             </div>
 
@@ -558,15 +941,31 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     Sale Type
                                 </label>
+
                                 <select
                                     value={saleType}
-                                    onChange={(e) => setSaleType(e.target.value)}
+                                    onChange={(e) =>
+                                        setSaleType(
+                                            e.target.value
+                                        )
+                                    }
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                 >
-                                    <option value="Sale">Sale</option>
-                                    <option value="Export">Export</option>
-                                    <option value="Retail">Retail</option>
-                                    <option value="Wholesale">Wholesale</option>
+                                    <option value="Sale">
+                                        Sale
+                                    </option>
+
+                                    <option value="Export">
+                                        Export
+                                    </option>
+
+                                    <option value="Retail">
+                                        Retail
+                                    </option>
+
+                                    <option value="Wholesale">
+                                        Wholesale
+                                    </option>
                                 </select>
                             </div>
 
@@ -574,10 +973,15 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     Order No.
                                 </label>
+
                                 <input
                                     type="text"
                                     value={orderNo}
-                                    onChange={(e) => setOrderNo(e.target.value)}
+                                    onChange={(e) =>
+                                        setOrderNo(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="Order Number"
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                 />
@@ -587,10 +991,15 @@ setMessage(
                                 <label className="block text-sm font-medium text-slate-600 mb-2">
                                     E-Way Bill No.
                                 </label>
+
                                 <input
                                     type="text"
                                     value={ewayBillNo}
-                                    onChange={(e) => setEwayBillNo(e.target.value)}
+                                    onChange={(e) =>
+                                        setEwayBillNo(
+                                            e.target.value
+                                        )
+                                    }
                                     placeholder="E-Way Bill Number"
                                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
                                 />
@@ -618,23 +1027,33 @@ setMessage(
                                 </label>
 
                                 <input
-    name="name"
-    value={customer.name}
-    onChange={handleCustomerChange}
-    list="customer-list"
-    placeholder="Customer / Business Name"
-    className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
-    required
-/>
+                                    name="name"
+                                    value={customer.name}
+                                    onChange={
+                                        handleCustomerChange
+                                    }
+                                    list="customer-list"
+                                    placeholder="Customer / Business Name"
+                                    className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-200"
+                                    required
+                                />
 
-<datalist id="customer-list">
-    {customers.map((existingCustomer) => (
-        <option
-            key={existingCustomer._id}
-            value={existingCustomer.name}
-        />
-    ))}
-</datalist>
+                                <datalist id="customer-list">
+                                    {customers.map(
+                                        (
+                                            existingCustomer
+                                        ) => (
+                                            <option
+                                                key={
+                                                    existingCustomer._id
+                                                }
+                                                value={
+                                                    existingCustomer.name
+                                                }
+                                            />
+                                        )
+                                    )}
+                                </datalist>
                             </div>
 
                             <div>
@@ -720,7 +1139,6 @@ setMessage(
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
 
                             <div>
-
                                 <h2 className="text-xl font-semibold text-slate-800">
                                     Products / Services 📦
                                 </h2>
@@ -729,7 +1147,6 @@ setMessage(
                                     Add one or more products
                                     to this invoice.
                                 </p>
-
                             </div>
 
                             <button
@@ -778,8 +1195,6 @@ setMessage(
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
 
-                                            {/* Description */}
-
                                             <div className="lg:col-span-2">
 
                                                 <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -787,29 +1202,44 @@ setMessage(
                                                 </label>
 
                                                 <input
-    name="description"
-    value={item.description}
-    onChange={(e) =>
-        handleItemChange(index, e)
-    }
-    list={`product-list-${index}`}
-    placeholder="Product name"
-    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-200"
-    required
-/>
+                                                    name="description"
+                                                    value={
+                                                        item.description
+                                                    }
+                                                    onChange={(
+                                                        e
+                                                    ) =>
+                                                        handleItemChange(
+                                                            index,
+                                                            e
+                                                        )
+                                                    }
+                                                    list={`product-list-${index}`}
+                                                    placeholder="Product name"
+                                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-200"
+                                                    required
+                                                />
 
-<datalist id={`product-list-${index}`}>
-    {products.map((product) => (
-        <option
-            key={product._id}
-            value={product.name}
-        />
-    ))}
-</datalist>
+                                                <datalist
+                                                    id={`product-list-${index}`}
+                                                >
+                                                    {products.map(
+                                                        (
+                                                            product
+                                                        ) => (
+                                                            <option
+                                                                key={
+                                                                    product._id
+                                                                }
+                                                                value={
+                                                                    product.name
+                                                                }
+                                                            />
+                                                        )
+                                                    )}
+                                                </datalist>
 
                                             </div>
-
-                                            {/* HSN */}
 
                                             <div>
 
@@ -835,8 +1265,6 @@ setMessage(
                                                 />
 
                                             </div>
-
-                                            {/* GST */}
 
                                             <div>
 
@@ -882,8 +1310,6 @@ setMessage(
 
                                             </div>
 
-                                            {/* Quantity */}
-
                                             <div>
 
                                                 <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -910,8 +1336,6 @@ setMessage(
 
                                             </div>
 
-                                            {/* Unit */}
-
                                             <div>
 
                                                 <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -936,8 +1360,6 @@ setMessage(
                                                 />
 
                                             </div>
-
-                                            {/* Rate */}
 
                                             <div>
 
@@ -965,8 +1387,6 @@ setMessage(
 
                                             </div>
 
-                                            {/* Amount */}
-
                                             <div>
 
                                                 <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -981,8 +1401,6 @@ setMessage(
 
                                             </div>
 
-                                            {/* GST Amount */}
-
                                             <div>
 
                                                 <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -996,8 +1414,6 @@ setMessage(
                                                 </div>
 
                                             </div>
-
-                                            {/* Total */}
 
                                             <div>
 
@@ -1029,7 +1445,7 @@ setMessage(
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                        {/* TERMS & CONDITIONS */}
+                        {/* TERMS */}
 
                         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
 
@@ -1125,9 +1541,23 @@ setMessage(
 
                     </div>
 
-                    {/* ACTIONS */}
+                    {/* =============================
+                        ACTIONS
+                    ============================= */}
 
                     <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+
+                        {editingInvoiceId && (
+                            <button
+                                type="button"
+                                onClick={
+                                    handleNewInvoice
+                                }
+                                className="px-6 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            >
+                                Cancel Edit
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -1138,7 +1568,7 @@ setMessage(
                             }
                             className="px-6 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         >
-                            Cancel
+                            Back to Dashboard
                         </button>
 
                         <button
@@ -1147,7 +1577,11 @@ setMessage(
                             className="px-7 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm disabled:opacity-60"
                         >
                             {loading
-                                ? "Creating Invoice..."
+                                ? editingInvoiceId
+                                    ? "Updating Invoice..."
+                                    : "Creating Invoice..."
+                                : editingInvoiceId
+                                ? "Update Invoice ✏️"
                                 : "Create Invoice 🧾"}
                         </button>
 

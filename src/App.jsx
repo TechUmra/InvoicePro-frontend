@@ -15,6 +15,7 @@ import Customers from "./pages/Customers";
 import Products from "./pages/Products";
 import Analytics from "./pages/Analytics";
 import AIAssistant from "./pages/AIAssistant";
+import Invoices from "./pages/Invoices";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import UpdateChecker from "./components/UpdateChecker";
@@ -67,6 +68,13 @@ function App() {
                     <Route
                         path="/dashboard"
                         element={<Dashboard />}
+                    />
+
+                    {/* Invoices */}
+
+                    <Route
+                        path="/invoices"
+                        element={<Invoices />}
                     />
 
                     {/* Customers */}

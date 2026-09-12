@@ -29,11 +29,18 @@ function Dashboard() {
     const fetchInvoices = async () => {
         try {
             const response = await API.get("/invoices");
-            setInvoices(response.data.invoices || response.data || []);
+
+            setInvoices(
+                response.data.invoices ||
+                    response.data ||
+                    []
+            );
         } catch (error) {
             console.error("Invoice fetch error:", error);
+
             setError(
-                error.response?.data?.message || "Failed to load invoices."
+                error.response?.data?.message ||
+                    "Failed to load invoices."
             );
         } finally {
             setLoading(false);
@@ -44,16 +51,32 @@ function Dashboard() {
         fetchInvoices();
     }, []);
 
-    const updateInvoiceStatus = async (invoiceId, nextStatus) => {
+    // =====================================================
+    // UPDATE INVOICE STATUS
+    // =====================================================
+
+    const updateInvoiceStatus = async (
+        invoiceId,
+        nextStatus
+    ) => {
         try {
-            await API.patch(`/invoices/${invoiceId}/status`, {
-                status: nextStatus,
-            });
+            await API.patch(
+                `/invoices/${invoiceId}/status`,
+                {
+                    status: nextStatus,
+                }
+            );
+
             await fetchInvoices();
         } catch (error) {
-            console.error("Update invoice status error:", error);
+            console.error(
+                "Update invoice status error:",
+                error
+            );
+
             setError(
-                error.response?.data?.message || "Failed to update invoice status."
+                error.response?.data?.message ||
+                    "Failed to update invoice status."
             );
         }
     };
@@ -214,9 +237,7 @@ function Dashboard() {
 
                     <button
                         onClick={() =>
-                            navigate(
-                                "/business-profile"
-                            )
+                            navigate("/business-profile")
                         }
                         className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg"
                     >
@@ -302,7 +323,7 @@ function Dashboard() {
 
             <aside className="w-64 bg-white border-r border-slate-200 p-5 hidden md:flex flex-col min-h-screen">
 
-                <div className="mb-10">
+                <div className="mb-8">
                     <h1 className="text-2xl font-bold text-indigo-600">
                         InvoicePro
                     </h1>
@@ -314,20 +335,26 @@ function Dashboard() {
 
                 <nav className="space-y-2">
 
+                    {/* DASHBOARD */}
+
                     <button
                         className="w-full text-left px-4 py-3 rounded-xl bg-indigo-50 text-indigo-600 font-medium"
                     >
                         🏠 Dashboard
                     </button>
 
+                    {/* INVOICES */}
+
                     <button
                         onClick={() =>
-                            navigate("/create-invoice")
+                            navigate("/invoices")
                         }
                         className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50"
                     >
-                        ➕ New Invoice
+                        🧾 Invoices
                     </button>
+
+                    {/* CUSTOMERS */}
 
                     <button
                         onClick={() =>
@@ -338,6 +365,8 @@ function Dashboard() {
                         👥 Customers
                     </button>
 
+                    {/* PRODUCTS */}
+
                     <button
                         onClick={() =>
                             navigate("/products")
@@ -347,6 +376,8 @@ function Dashboard() {
                         📦 Products
                     </button>
 
+                    {/* ANALYTICS */}
+
                     <button
                         onClick={() =>
                             navigate("/analytics")
@@ -355,6 +386,8 @@ function Dashboard() {
                     >
                         📊 Analytics
                     </button>
+
+                    {/* AI ASSISTANT */}
 
                     <button
                         onClick={() =>
@@ -369,16 +402,18 @@ function Dashboard() {
 
                 <div className="mt-auto">
 
+                    {/* BUSINESS PROFILE */}
+
                     <button
                         onClick={() =>
-                            navigate(
-                                "/business-profile"
-                            )
+                            navigate("/business-profile")
                         }
                         className="w-full text-left px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50"
                     >
                         ⚙️ Business Profile
                     </button>
+
+                    {/* LOGOUT */}
 
                     <button
                         onClick={handleLogout}
@@ -423,9 +458,7 @@ function Dashboard() {
 
                     <button
                         onClick={() =>
-                            navigate(
-                                "/create-invoice"
-                            )
+                            navigate("/create-invoice")
                         }
                         className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm text-sm sm:text-base"
                     >
@@ -450,8 +483,6 @@ function Dashboard() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6 md:mb-8">
 
-                    {/* TOTAL SALES */}
-
                     <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200">
 
                         <p className="text-sm text-slate-500">
@@ -475,8 +506,6 @@ function Dashboard() {
 
                     </div>
 
-                    {/* PAID */}
-
                     <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200">
 
                         <p className="text-sm text-slate-500">
@@ -492,13 +521,10 @@ function Dashboard() {
                         </h3>
 
                         <p className="text-sm text-green-600 mt-2">
-                            {collectedPercentage}%
-                            collected
+                            {collectedPercentage}% collected
                         </p>
 
                     </div>
-
-                    {/* PENDING */}
 
                     <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200">
 
@@ -524,8 +550,6 @@ function Dashboard() {
                         </p>
 
                     </div>
-
-                    {/* OVERDUE */}
 
                     <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200">
 
@@ -560,9 +584,7 @@ function Dashboard() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
 
-                    {/* =================================================
-                        REVENUE
-                    ================================================= */}
+                    {/* REVENUE */}
 
                     <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 overflow-hidden">
 
@@ -589,8 +611,6 @@ function Dashboard() {
                             </select>
 
                         </div>
-
-                        {/* CHART */}
 
                         <div className="overflow-x-auto">
 
@@ -643,9 +663,7 @@ function Dashboard() {
 
                     </div>
 
-                    {/* =================================================
-                        QUICK ACTIONS
-                    ================================================= */}
+                    {/* QUICK ACTIONS */}
 
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6">
 
@@ -732,8 +750,7 @@ function Dashboard() {
                                         }
                                         className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm"
                                     >
-                                        Create your
-                                        first invoice
+                                        Create your first invoice
                                     </button>
 
                                 </div>
@@ -812,6 +829,7 @@ function Dashboard() {
                                                     </td>
 
                                                     <td className="pr-4">
+
                                                         <span
                                                             className={`px-3 py-1 rounded-full text-xs whitespace-nowrap ${getStatusStyle(
                                                                 invoice.status
@@ -821,10 +839,13 @@ function Dashboard() {
                                                                 invoice.status
                                                             }
                                                         </span>
+
                                                     </td>
 
                                                     <td className="py-4 text-right">
-                                                        {invoice.status === "Paid" ? (
+
+                                                        {invoice.status ===
+                                                        "Paid" ? (
                                                             <span className="text-xs text-green-600 font-medium">
                                                                 Paid
                                                             </span>
@@ -841,6 +862,7 @@ function Dashboard() {
                                                                 Mark as Paid
                                                             </button>
                                                         )}
+
                                                     </td>
 
                                                 </tr>
@@ -855,8 +877,6 @@ function Dashboard() {
                         </div>
 
                     </div>
-
-                    {/* MOBILE TABLE HINT */}
 
                     {!loading &&
                         recentInvoices.length >

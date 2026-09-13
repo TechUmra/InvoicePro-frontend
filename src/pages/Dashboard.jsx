@@ -256,15 +256,14 @@ function Dashboard() {
                     >
                         🏠 Home
                     </button>
-
-                    <button
-                        onClick={() =>
-                            navigate("/create-invoice")
-                        }
-                        className="py-2 rounded-lg bg-slate-50 text-slate-600 text-xs font-medium"
-                    >
-                        ➕ Invoice
-                    </button>
+<button
+    onClick={() =>
+        navigate("/invoices")
+    }
+    className="py-2 rounded-lg bg-slate-50 text-slate-600 text-xs font-medium"
+>
+    🧾 Invoices
+</button>
 
                     <button
                         onClick={() =>

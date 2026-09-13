@@ -33,14 +33,15 @@ function App() {
                 ========================= */}
 
                 <Route
-                    path="/"
-                    element={
-                        <Navigate
-                            to="/login"
-                            replace
-                        />
-                    }
-                />
+    path="/"
+    element={
+        localStorage.getItem("token") ? (
+            <Navigate to="/dashboard" replace />
+        ) : (
+            <Navigate to="/login" replace />
+        )
+    }
+/>
 
                 {/* =========================
                     PUBLIC ROUTES
